@@ -5,8 +5,12 @@ A Sopel plugin providing alerts about malicious URLs.
 This plugin uses virustotal.com
 
 Based on a plugin © 2014, Elad Alfassa, <elad@fedoraproject.org>
-Forked from upstream to this new project as of:
-https://github.com/sopel-irc/sopel/blob/1c6aeb93a269a3997a9d55ec102a9ed77e393402/sopel/builtins/safety.py
+
+Forked from upstream to this new project as of [1], with additional tweaks
+cherry-picked from [2].
+
+[1]: https://github.com/sopel-irc/sopel/blob/1c6aeb93a269a3997a9d55ec102a9ed77e393402/sopel/builtins/safety.py
+[2]: https://github.com/sopel-irc/sopel/blob/97bb97c66c1d0816054263c4ad1e05400f229782/sopel/builtins/safety.py
 
 Licensed under the Eiffel Forum License 2.
 """
@@ -15,7 +19,6 @@ from __future__ import annotations
 from base64 import urlsafe_b64encode
 from datetime import datetime, timedelta, timezone
 import json
-import logging
 import os.path
 import re
 import threading
@@ -35,6 +38,7 @@ if TYPE_CHECKING:
     from sopel.bot import Sopel, SopelWrapper
     from sopel.config import Config
     from sopel.trigger import Trigger
+
 
 LOGGER = tools.get_logger('safety')
 PLUGIN_OUTPUT_PREFIX = '[safety] '
@@ -59,7 +63,7 @@ class SafetySection(types.StaticSection):
     """Optional hosts-file formatted domain blocklist to use instead of StevenBlack's."""
 
 
-def configure(settings: Config):
+def configure(settings: Config) -> None:
     settings.define_section("safety", SafetySection)
     settings.safety.configure_setting(
         "default_mode",
@@ -85,7 +89,7 @@ def configure(settings: Config):
     )
 
 
-def setup(bot: Sopel):
+def setup(bot: Sopel) -> None:
     bot.settings.define_section("safety", SafetySection)
 
     if SAFETY_CACHE_KEY not in bot.memory:
@@ -101,11 +105,15 @@ def setup(bot: Sopel):
 
 def safeify_url(url: str) -> str:
     """Replace bits of a URL to make it hard to browse to."""
-    parts = urlparse(url)
-    scheme = "hxx" + parts.scheme[3:]  # hxxp
-    netloc = parts.netloc.replace(".", "[.]")  # google[.]com and IPv4
-    netloc = netloc.replace(":", "[:]")  # IPv6 addresses (bad lazy method)
-    return urlunparse((scheme, netloc) + parts[2:])
+    try:
+        parts = urlparse(url)
+        scheme = parts.scheme.replace("t", "x")  # hxxp
+        netloc = parts.netloc.replace(".", "[.]")  # google[.]com and IPv4
+        netloc = netloc.replace(":", "[:]")  # IPv6 addresses (bad lazy method)
+        return urlunparse((scheme, netloc) + parts[2:])
+    except ValueError:
+        # Still try to defang URLs that fail parsing
+        return url.replace(":", "[:]").replace(".", "[.]")
 
 
 def download_domain_list(bot: Sopel, path: str) -> bool:
@@ -141,7 +149,7 @@ def download_domain_list(bot: Sopel, path: str) -> bool:
     return True
 
 
-def update_local_cache(bot: Sopel, init: bool = False):
+def update_local_cache(bot: Sopel, init: bool = False) -> None:
     """Download the current malware domain list and load it into memory.
 
     :param init: Load the file even if it's unchanged
@@ -177,7 +185,7 @@ def update_local_cache(bot: Sopel, init: bool = False):
     bot.memory[SAFETY_CACHE_LOCAL_KEY] = unsafe_domains
 
 
-def shutdown(bot: Sopel):
+def shutdown(bot: Sopel) -> None:
     bot.memory.pop(SAFETY_CACHE_KEY, None)
     bot.memory.pop(SAFETY_CACHE_LOCAL_KEY, None)
     bot.memory.pop(SAFETY_CACHE_LOCK_KEY, None)
@@ -186,7 +194,7 @@ def shutdown(bot: Sopel):
 @plugin.url(r'(https?://\S+)')
 @plugin.priority('high')
 @plugin.output_prefix(PLUGIN_OUTPUT_PREFIX)
-def url_handler(bot: SopelWrapper, trigger: Trigger):
+def url_handler(bot: SopelWrapper, trigger: Trigger) -> None:
     """Checks for malicious URLs."""
     mode = bot.db.get_channel_value(
         trigger.sender,
@@ -199,8 +207,6 @@ def url_handler(bot: SopelWrapper, trigger: Trigger):
     strict = "strict" in mode
 
     for url in tools.web.search_urls(trigger):
-        safe_url = safeify_url(url)
-
         positives = 0  # Number of engines saying it's malicious
         total = 0  # Number of total engines
 
@@ -224,6 +230,7 @@ def url_handler(bot: SopelWrapper, trigger: Trigger):
 
         if positives >= 1:
             # Possibly malicious URL detected!
+            safe_url = safeify_url(url)
             LOGGER.info(
                 "Possibly malicious link (%s/%s) posted in %s by %s: %r",
                 positives,
@@ -233,11 +240,10 @@ def url_handler(bot: SopelWrapper, trigger: Trigger):
                 safe_url,
             )
             bot.say(
-                "{} {} of {} engine{} flagged a link {} posted as malicious".format(
+                "{} {} of {} engines flagged a link {} posted as malicious".format(
                     bold(color("WARNING:", colors.RED)),
                     positives,
                     total,
-                    "" if total == 1 else "s",
                     bold(trigger.nick),
                 )
             )
@@ -340,7 +346,7 @@ def virustotal_lookup(
 @plugin.example(".virustotal https://malware.wicar.org/")
 @plugin.example(".virustotal hxxps://malware.wicar.org/")
 @plugin.output_prefix("[safety][VirusTotal] ")
-def vt_command(bot: SopelWrapper, trigger: Trigger):
+def vt_command(bot: SopelWrapper, trigger: Trigger) -> None:
     """Look up VT results on demand."""
     if not bot.settings.safety.vt_api_key:
         bot.reply("Sorry, I don't have a VirusTotal API key configured.")
@@ -396,7 +402,7 @@ def vt_command(bot: SopelWrapper, trigger: Trigger):
 @plugin.command('safety')
 @plugin.example(".safety on")
 @plugin.output_prefix(PLUGIN_OUTPUT_PREFIX)
-def toggle_safety(bot: SopelWrapper, trigger: Trigger):
+def toggle_safety(bot: SopelWrapper, trigger: Trigger) -> None:
     """Set safety setting for channel."""
     if not trigger.admin and bot.channels[trigger.sender].privileges[trigger.nick] < plugin.OP:
         bot.reply('Only channel operators can change safety settings')
@@ -430,7 +436,7 @@ def toggle_safety(bot: SopelWrapper, trigger: Trigger):
 # Clean the cache every day
 # Code above also calls this if there are too many cache entries
 @plugin.interval(24 * 60 * 60)
-def _clean_cache(bot: Sopel):
+def _clean_cache(bot: Sopel) -> None:
     """Cleans up old entries in URL safety cache."""
 
     update_local_cache(bot)
