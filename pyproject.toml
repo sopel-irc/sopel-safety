@@ -18,6 +18,9 @@ version = "0.1.0"
 description = "A Sopel plugin providing alerts about malicious URLs."
 
 authors = [
+  { name="Elad Alfassa" },
+]
+maintainers = [
   { name="dgw", email="dgw@technobabbl.es" },
 ]
 
