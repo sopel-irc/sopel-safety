@@ -49,7 +49,7 @@ SAFETY_CACHE_LOCAL_KEY = SAFETY_CACHE_KEY + "_local"
 SAFETY_MODES = ["off", "local", "local strict", "on", "strict"]
 VT_API_URL = "https://www.virustotal.com/api/v3/urls"
 CACHE_LIMIT = 512
-KNOWN_GOOD = []
+KNOWN_GOOD = "safety_known_good"  # bot.memory key
 
 
 class SafetySection(types.StaticSection):
@@ -96,8 +96,13 @@ def setup(bot: Sopel) -> None:
         bot.memory[SAFETY_CACHE_KEY] = tools.SopelMemory()
     if SAFETY_CACHE_LOCK_KEY not in bot.memory:
         bot.memory[SAFETY_CACHE_LOCK_KEY] = threading.Lock()
-    for item in bot.settings.safety.known_good:
-        KNOWN_GOOD.append(re.compile(item, re.I))
+
+    # don't bother checking if known-good patterns are already loaded;
+    # just set them again if the plugin gets reloaded
+    # (and yes, if "tuple comprehensions" were a thing, this would be one)
+    bot.memory[KNOWN_GOOD] = tuple([
+        re.compile(item, re.I) for item in bot.settings.safety.known_good
+    ])
 
     LOGGER.info('Ensuring unsafe domain list is up-to-date')
     update_local_cache(bot, init=True)
@@ -215,7 +220,7 @@ def url_handler(bot: SopelWrapper, trigger: Trigger) -> None:
         except (ValueError, AttributeError):
             pass  # Invalid address
         else:
-            if any(regex.search(hostname) for regex in KNOWN_GOOD):
+            if any(regex.search(hostname) for regex in bot.memory[KNOWN_GOOD]):
                 continue  # explicitly trusted
 
             if hostname in bot.memory[SAFETY_CACHE_LOCAL_KEY]:
