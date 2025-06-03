@@ -49,7 +49,7 @@ SAFETY_CACHE_LOCAL_KEY = SAFETY_CACHE_KEY + "_local"
 SAFETY_MODES = ["off", "local", "local strict", "on", "strict"]
 VT_API_URL = "https://www.virustotal.com/api/v3/urls"
 CACHE_LIMIT = 512
-known_good = []
+KNOWN_GOOD = []
 
 
 class SafetySection(types.StaticSection):
@@ -97,7 +97,7 @@ def setup(bot: Sopel) -> None:
     if SAFETY_CACHE_LOCK_KEY not in bot.memory:
         bot.memory[SAFETY_CACHE_LOCK_KEY] = threading.Lock()
     for item in bot.settings.safety.known_good:
-        known_good.append(re.compile(item, re.I))
+        KNOWN_GOOD.append(re.compile(item, re.I))
 
     LOGGER.info('Ensuring unsafe domain list is up-to-date (safety plugin setup)')
     update_local_cache(bot, init=True)
@@ -215,7 +215,7 @@ def url_handler(bot: SopelWrapper, trigger: Trigger) -> None:
         except (ValueError, AttributeError):
             pass  # Invalid address
         else:
-            if any(regex.search(hostname) for regex in known_good):
+            if any(regex.search(hostname) for regex in KNOWN_GOOD):
                 continue  # explicitly trusted
 
             if hostname in bot.memory[SAFETY_CACHE_LOCAL_KEY]:
