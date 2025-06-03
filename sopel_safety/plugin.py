@@ -99,7 +99,7 @@ def setup(bot: Sopel) -> None:
     for item in bot.settings.safety.known_good:
         KNOWN_GOOD.append(re.compile(item, re.I))
 
-    LOGGER.info('Ensuring unsafe domain list is up-to-date (safety plugin setup)')
+    LOGGER.info('Ensuring unsafe domain list is up-to-date')
     update_local_cache(bot, init=True)
 
 
