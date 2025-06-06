@@ -55,10 +55,13 @@ KNOWN_GOOD = "safety_known_good"  # bot.memory key
 class SafetySection(types.StaticSection):
     default_mode = types.ValidatedAttribute("default_mode", default='on')
     """Which mode to use in channels without a mode set."""
+
     known_good = types.ListAttribute('known_good')
     """List of "known good" domains or regexes to consider trusted."""
+
     vt_api_key = types.ValidatedAttribute('vt_api_key')
     """Optional VirusTotal API key (improves malicious URL detection)."""
+
     domain_blocklist_url = types.ValidatedAttribute("domain_blocklist_url")
     """Optional hosts-file formatted domain blocklist to use instead of StevenBlack's."""
 
@@ -122,7 +125,7 @@ def safeify_url(url: str) -> str:
 
 
 def download_domain_list(bot: Sopel, path: str) -> bool:
-    """Download the current unsafe domain list.
+    """Download the current unsafe-domain list.
 
     :param path: Where to save the unsafe domain list
     :returns: True if the list was updated
@@ -155,7 +158,7 @@ def download_domain_list(bot: Sopel, path: str) -> bool:
 
 
 def update_local_cache(bot: Sopel, init: bool = False) -> None:
-    """Download the current malware domain list and load it into memory.
+    """Download the current unsafe-domain list and load it into memory.
 
     :param init: Load the file even if it's unchanged
     """
@@ -200,7 +203,7 @@ def shutdown(bot: Sopel) -> None:
 @plugin.priority('high')
 @plugin.output_prefix(PLUGIN_OUTPUT_PREFIX)
 def url_handler(bot: SopelWrapper, trigger: Trigger) -> None:
-    """Checks for malicious URLs."""
+    """Check the ``trigger`` for malicious URLs."""
     mode = bot.db.get_channel_value(
         trigger.sender,
         "safety",
@@ -443,7 +446,6 @@ def toggle_safety(bot: SopelWrapper, trigger: Trigger) -> None:
 @plugin.interval(24 * 60 * 60)
 def _clean_cache(bot: Sopel) -> None:
     """Cleans up old entries in URL safety cache."""
-
     update_local_cache(bot)
 
     if bot.memory[SAFETY_CACHE_LOCK_KEY].acquire(False):
