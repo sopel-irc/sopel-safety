@@ -48,7 +48,6 @@ SAFETY_CACHE_LOCK_KEY = SAFETY_CACHE_KEY + "_lock"
 SAFETY_CACHE_LOCAL_KEY = SAFETY_CACHE_KEY + "_local"
 SAFETY_MODES = ["off", "local", "local strict", "on", "strict"]
 VT_API_URL = "https://www.virustotal.com/api/v3/urls"
-CACHE_LIMIT = 512
 KNOWN_GOOD = "safety_known_good"  # bot.memory key
 
 
@@ -64,6 +63,9 @@ class SafetySection(types.StaticSection):
 
     domain_blocklist_url = types.ValidatedAttribute("domain_blocklist_url")
     """Optional hosts-file formatted domain blocklist to use instead of StevenBlack's."""
+
+    url_cache_limit = types.ValidatedAttribute("url_cache_limit", parse=int, default=512)
+    """Maximum number of entries to keep in the URL safety cache."""
 
 
 def configure(settings: Config) -> None:
@@ -89,6 +91,11 @@ def configure(settings: Config) -> None:
         "domain_blocklist_url",
         "Optionally, provide the URL for a hosts-file formatted domain "
         "blocklist to use instead of StevenBlack's.",
+    )
+    settings.safety.configure_setting(
+        "url_cache_limit",
+        "Optionally, override the default maximum number of entries (512) to "
+        "keep in the URL safety cache.",
     )
 
 
@@ -345,7 +352,7 @@ def virustotal_lookup(
         "virustotal_data": vt_data["data"]["attributes"],
     }
     bot.memory[SAFETY_CACHE_KEY][url] = result
-    if len(bot.memory[SAFETY_CACHE_KEY]) >= (2 * CACHE_LIMIT):
+    if len(bot.memory[SAFETY_CACHE_KEY]) >= (2 * bot.settings.safety.url_cache_limit):
         _clean_cache(bot)
     return result
 
@@ -461,7 +468,10 @@ def _clean_cache(bot: Sopel) -> None:
                 bot.memory[SAFETY_CACHE_KEY].pop(key, None)
 
             # clean up more values if the cache is still too big
-            overage = len(bot.memory[SAFETY_CACHE_KEY]) - CACHE_LIMIT
+            overage = (
+                len(bot.memory[SAFETY_CACHE_KEY])
+                - bot.settings.safety.url_cache_limit
+            )
             if overage > 0:
                 extra_keys = sorted(
                     (data.fetched, key)

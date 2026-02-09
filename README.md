@@ -49,6 +49,9 @@ this continuation package) use `unsafedomains.txt` instead.
   aggregates known domains across adware and malware categories. This option can
   be used to specify [a different variant from the same repository][SBvars], or
   another compatible file maintained elsewhere.
+* `url_cache_limit` — Optional maximum URL cache size.\
+  This plugin remembers recently-seen malicious URLs as long as the bot stays
+  running, to avoid repeated lookups. By default, the limit is 512.
 
 [SBfile]: https://github.com/StevenBlack/hosts/blob/master/hosts
 [SBvars]: https://github.com/StevenBlack/hosts#list-of-all-hosts-file-variants
